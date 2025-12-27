@@ -87,6 +87,20 @@ class AudioEngine {
 }
 const audio = new AudioEngine();
 
+// Share Icon Component (Share2 style)
+const ShareIcon: FC<{ color: string }> = ({ color }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+  </svg>
+);
+
+// Twitter Share Helper
+const shareOnTwitter = (text: string) => {
+  const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank', 'width=550,height=420');
+};
+
 type ActiveGame = 'MENU' | 'ASCENT' | 'STACK' | 'GRAVITY';
 
 const GameSandbox: FC = () => {
@@ -168,7 +182,26 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [parallax, setParallax] = useState({ x: 0, y: 0 });
+  const [arcadeLevel, setArcadeLevel] = useState({ level: 1, xp: 0, progress: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate Global Arcade Level from all game high scores
+  useEffect(() => {
+    try {
+      let ascentScore = 0, stackScore = 0, gravityScore = 0;
+      const ascentData = localStorage.getItem("neon_ascent_v2");
+      if (ascentData) { const d = JSON.parse(ascentData); ascentScore = Math.max(d.highScores?.EASY || 0, d.highScores?.NORMAL || 0, d.highScores?.HARD || 0); }
+      const stackData = localStorage.getItem("cyber_stack_v2");
+      if (stackData) stackScore = parseInt(stackData) || 0;
+      const gravityData = localStorage.getItem("gravity_glitch_v3");
+      if (gravityData) gravityScore = parseInt(gravityData) || 0;
+      // Formula: (Ascent + Stack*10 + Gravity) / 100
+      const totalXP = ascentScore + (stackScore * 10) + gravityScore;
+      const level = Math.floor(totalXP / 100) + 1;
+      const progress = (totalXP % 100) / 100;
+      setArcadeLevel({ level, xp: totalXP, progress });
+    } catch {}
+  }, []);
 
   // Parallax effect on mouse/touch move
   const handleParallax = useCallback((clientX: number, clientY: number) => {
@@ -240,19 +273,25 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
       </div>
 
       {/* Header - Frosted Glass */}
-      <div className="relative z-10 pt-1 px-3">
-        <div className="flex items-center justify-between backdrop-blur-xl bg-white/5 rounded-full px-3 py-1.5 border border-white/10">
-          <h1 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Neon Arcade</h1>
-          <div className="flex gap-2">
+      <div className="relative z-10 pt-1 px-2">
+        <div className="flex items-center justify-between backdrop-blur-xl bg-white/5 rounded-full px-2 py-1 border border-white/10">
+          <h1 className="text-[9px] font-black uppercase tracking-wider text-white/80">Arcade</h1>
+          {/* Arcade Level Badge */}
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.25)' }}>
+            <span className="text-[8px] font-black text-yellow-400">L{arcadeLevel.level}</span>
+            <div className="w-6 h-1 rounded-full bg-black/40 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${arcadeLevel.progress * 100}%`, background: 'linear-gradient(90deg, #ffd700, #ff8c00)' }} />
+            </div>
+          </div>
+          <div className="flex gap-1.5">
             {GAMES.map((g, i) => (
               <button
                 key={g.id}
                 onClick={(e) => { e.stopPropagation(); audio.play('click'); setSelected(i); }}
-                className="relative w-2 h-2 rounded-full transition-all duration-500"
+                className="relative w-1.5 h-1.5 rounded-full transition-all duration-300"
                 style={{
-                  background: i === selected ? g.color : 'rgba(255,255,255,0.15)',
-                  transform: i === selected ? 'scale(1.4)' : 'scale(1)',
-                  boxShadow: i === selected ? `0 0 12px ${g.color}, 0 0 24px ${g.color}50` : 'none',
+                  background: i === selected ? g.color : 'rgba(255,255,255,0.2)',
+                  boxShadow: i === selected ? `0 0 8px ${g.color}` : 'none',
                 }}
               />
             ))}
@@ -261,7 +300,7 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
       </div>
 
       {/* Main Card Area with Spring Physics */}
-      <div className="flex-1 flex items-center justify-center px-4 py-3">
+      <div className="flex-1 flex items-center justify-center px-3 py-2">
         <div
           className="relative w-full"
           style={{
@@ -298,25 +337,25 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
             </div>
 
             {/* Content */}
-            <div className="relative p-4">
+            <div className="relative p-3">
               {/* Floating Orb Icon */}
-              <div className="flex justify-center mb-3">
+              <div className="flex justify-center mb-2">
                 <div
-                  className="relative flex items-center justify-center w-16 h-16 rounded-full backdrop-blur-xl"
+                  className="relative flex items-center justify-center w-12 h-12 rounded-full backdrop-blur-xl"
                   style={{
                     background: `radial-gradient(circle at 30% 30%, ${game.color}40 0%, ${game.color}10 60%, transparent 100%)`,
                     border: `1px solid ${game.color}30`,
-                    boxShadow: `0 0 40px ${game.color}30, inset 0 0 20px ${game.color}20`,
+                    boxShadow: `0 0 30px ${game.color}30, inset 0 0 15px ${game.color}20`,
                     animation: 'orbFloat 3s ease-in-out infinite',
                   }}
                 >
-                  <span className="text-3xl" style={{ filter: `drop-shadow(0 0 10px ${game.color})`, animation: 'iconPulse 2s ease-in-out infinite' }}>{game.icon}</span>
+                  <span className="text-2xl" style={{ filter: `drop-shadow(0 0 8px ${game.color})`, animation: 'iconPulse 2s ease-in-out infinite' }}>{game.icon}</span>
                 </div>
               </div>
 
               {/* Tag Pill */}
-              <div className="flex justify-center mb-2">
-                <span className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md" style={{
+              <div className="flex justify-center mb-1">
+                <span className="px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-widest backdrop-blur-md" style={{
                   background: `${game.color}15`,
                   color: game.color,
                   border: `1px solid ${game.color}30`,
@@ -324,13 +363,13 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
               </div>
 
               {/* Title */}
-              <h2 className="text-xl font-black text-center tracking-tight mb-1" style={{ color: 'white' }}>{game.name}</h2>
-              <p className="text-[11px] text-center text-white/40 mb-4 font-medium">{game.desc}</p>
+              <h2 className="text-lg font-black text-center tracking-tight mb-0.5" style={{ color: 'white' }}>{game.name}</h2>
+              <p className="text-[10px] text-center text-white/40 mb-3 font-medium">{game.desc}</p>
 
               {/* Breathing Play Button */}
               <button
                 onClick={(e) => { e.stopPropagation(); onSelectGame(game.id); }}
-                className="w-full py-3 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all active:scale-95"
+                className="w-full py-2.5 rounded-xl font-bold text-sm uppercase tracking-widest transition-all active:scale-95"
                 style={{
                   background: `linear-gradient(135deg, ${game.color} 0%, ${game.color}dd 100%)`,
                   color: '#000',
@@ -346,12 +385,12 @@ const ArcadeMenu: FC<ArcadeMenuProps> = ({ onSelectGame }) => {
       </div>
 
       {/* Bottom Navigation Pills */}
-      <div className="relative z-10 flex justify-center gap-3 pb-3 px-4">
+      <div className="relative z-10 flex justify-center gap-2 pb-2 px-3">
         {GAMES.map((g, i) => (
           <button
             key={g.id}
             onClick={(e) => { e.stopPropagation(); audio.play('click'); setSelected(i); }}
-            className="flex-1 py-2 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all duration-300 backdrop-blur-xl"
+            className="flex-1 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider transition-all duration-300 backdrop-blur-xl"
             style={{
               background: i === selected ? `${g.color}20` : 'rgba(255,255,255,0.03)',
               border: i === selected ? `1px solid ${g.color}40` : '1px solid rgba(255,255,255,0.05)',
@@ -406,6 +445,7 @@ const GameAscent: FC<GameProps> = ({ onExit }) => {
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [shakeX, setShakeX] = useState(0);
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   const frameRef = useRef(0), lastTimeRef = useRef(0), idRef = useRef(0);
   const timersRef = useRef({ obstacle: 0, coin: 0, drone: 0, taunt: 0 });
@@ -425,7 +465,7 @@ const GameAscent: FC<GameProps> = ({ onExit }) => {
     try { localStorage.setItem("neon_ascent_v2", JSON.stringify({ highScores: hs, totalScore: ts, unlockedSkins: us, selectedSkin, hasPlayedHard: hp })); } catch {}
   };
 
-  const startGame = () => { setGameState("playing"); setScore(0); setPlayerLane(1); setObstacles([]); setCoins([]); setSpeed(config.speed); setCombo(0); setAiMessage(null); lastTimeRef.current = performance.now(); timersRef.current = { obstacle: 0, coin: 0, drone: 0, taunt: 0 }; frameRef.current = 0; };
+  const startGame = () => { setGameState("playing"); setScore(0); setPlayerLane(1); setObstacles([]); setCoins([]); setSpeed(config.speed); setCombo(0); setAiMessage(null); setShowOnboarding(true); lastTimeRef.current = performance.now(); timersRef.current = { obstacle: 0, coin: 0, drone: 0, taunt: 0 }; frameRef.current = 0; };
 
   const endGame = () => {
     audio.play('crash'); setGameState("gameover"); setFlash(true); setTimeout(() => setFlash(false), 200);
@@ -435,7 +475,7 @@ const GameAscent: FC<GameProps> = ({ onExit }) => {
     saveData(nh, nt, nu, hp);
   };
 
-  const moveLane = (dir: -1 | 1) => { if (gameState !== "playing") return; setPlayerLane(l => Math.max(0, Math.min(2, l + dir))); setShakeX(dir * 3); setTimeout(() => setShakeX(0), 50); };
+  const moveLane = (dir: -1 | 1) => { if (gameState !== "playing") return; setShowOnboarding(false); setPlayerLane(l => Math.max(0, Math.min(2, l + dir))); setShakeX(dir * 3); setTimeout(() => setShakeX(0), 50); };
 
   const update = useCallback((time: number) => {
     if (gameState !== "playing") { animRef.current = requestAnimationFrame(update); return; }
@@ -511,8 +551,17 @@ const GameAscent: FC<GameProps> = ({ onExit }) => {
         </div>
       )}
       {aiMessage && <div className="absolute top-16 left-1/2 -translate-x-1/2 w-4/5"><div className="bg-black/80 border border-red-500 rounded px-2 py-1 text-red-400 text-[10px] font-mono text-center" style={{ animation: "blink 0.5s infinite" }}>{aiMessage}</div></div>}
+      {/* Onboarding Overlay */}
+      {gameState === "playing" && showOnboarding && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-center" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
+            <p className="text-lg font-black uppercase tracking-widest" style={{ color: currentSkin.color, textShadow: `0 0 20px ${currentSkin.color}` }}>TAP LEFT / RIGHT</p>
+            <p className="text-sm font-bold text-white/60 mt-1">TO DASH</p>
+          </div>
+        </div>
+      )}
       {gameState === "menu" && <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 p-3" onClick={(e) => e.stopPropagation()}><h1 className="text-3xl font-black" style={{ color: currentSkin.color, textShadow: `0 0 20px ${currentSkin.color}` }}>NEON</h1><h2 className="text-xl font-black text-white italic -mt-1 tracking-widest" style={{ transform: "skewX(-10deg)" }}>ASCENT</h2><button onClick={(e) => { e.stopPropagation(); startGame(); }} className="mt-4 px-6 py-2 rounded-lg font-bold text-black text-base" style={{ background: currentSkin.color, boxShadow: `0 0 20px ${currentSkin.color}80` }}>TAP TO START</button><div className="mt-4 flex items-center gap-2"><button onClick={(e) => { e.stopPropagation(); audio.play('click'); setDifficulty(d => d === "EASY" ? "HARD" : d === "NORMAL" ? "EASY" : "NORMAL"); }} className="text-white/40 text-lg">◀</button><div className="text-center min-w-[80px]"><div className="font-bold text-base" style={{ color: config.color }}>{difficulty}</div></div><button onClick={(e) => { e.stopPropagation(); audio.play('click'); setDifficulty(d => d === "EASY" ? "NORMAL" : d === "NORMAL" ? "HARD" : "EASY"); }} className="text-white/40 text-lg">▶</button></div><div className="mt-3 flex gap-1.5">{SKINS.map(s => { const u = unlockedSkins.includes(s.id), sel = selectedSkin === s.id; return <button key={s.id} onClick={(e) => { e.stopPropagation(); if (u) setSelectedSkin(s.id); }} className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center ${sel ? "scale-110" : ""} ${!u ? "opacity-40" : ""}`} style={{ borderColor: sel ? s.color : "rgba(255,255,255,0.2)", background: u ? `${s.color}30` : "#111" }}>{u ? <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderBottom: `8px solid ${s.color}` }} /> : <span className="text-[10px]">🔒</span>}</button>; })}</div>{highScores[difficulty] > 0 && <div className="mt-3 text-yellow-400/70 text-[11px]">🏆 {highScores[difficulty]}</div>}</div>}
-      {gameState === "gameover" && <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/50 p-3" onClick={(e) => e.stopPropagation()}><div className="bg-black/80 rounded-xl p-4 border border-red-500 w-full max-w-[90%] text-center"><h2 className="text-2xl font-black text-red-500">💀 CRASHED</h2><div className="text-4xl font-mono font-bold my-3 tracking-tighter" style={{ color: currentSkin.color }}>{Math.floor(score)}</div>{Math.floor(score) >= highScores[difficulty] && Math.floor(score) > 0 && <div className="text-yellow-400 text-xs mb-1 tracking-widest uppercase">⭐ New Best!</div>}<button onClick={(e) => { e.stopPropagation(); startGame(); }} className="w-full py-2 rounded-lg font-bold text-black text-sm" style={{ background: currentSkin.color }}>🔄 RETRY</button><button onClick={(e) => { e.stopPropagation(); onExit(); }} className="w-full mt-1.5 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
+      {gameState === "gameover" && <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/50 p-3" onClick={(e) => e.stopPropagation()}><div className="bg-black/80 rounded-xl p-4 border border-red-500 w-full max-w-[90%] text-center"><h2 className="text-2xl font-black text-red-500">💀 CRASHED</h2><div className="text-4xl font-mono font-bold my-3 tracking-tighter" style={{ color: currentSkin.color }}>{Math.floor(score)}</div>{Math.floor(score) >= highScores[difficulty] && Math.floor(score) > 0 && <div className="text-yellow-400 text-xs mb-1 tracking-widest uppercase">⭐ New Best!</div>}<button onClick={(e) => { e.stopPropagation(); shareOnTwitter(`🚀 I reached ${Math.floor(score)}m in Neon Ascent! Beat me at #ScrollyGameJam`); }} className="w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 mb-1.5" style={{ background: `${currentSkin.color}20`, border: `1px solid ${currentSkin.color}40`, color: currentSkin.color }}><ShareIcon color={currentSkin.color} />SHARE SCORE</button><button onClick={(e) => { e.stopPropagation(); startGame(); }} className="w-full py-2 rounded-lg font-bold text-black text-sm" style={{ background: currentSkin.color }}>🔄 RETRY</button><button onClick={(e) => { e.stopPropagation(); onExit(); }} className="w-full mt-1.5 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
       {flash && <div className="absolute inset-0 bg-red-500 opacity-50 pointer-events-none" />}
     </div>
   );
@@ -532,15 +581,17 @@ const GameStack: FC<GameProps> = ({ onExit }) => {
   const [fallingPieces, setFallingPieces] = useState<Array<{ id: number; x: number; width: number; y: number; side: string }>>([]);
   const [perfectStreak, setPerfectStreak] = useState(0);
   const [showPerfect, setShowPerfect] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(true);
   const animRef = useRef<number>(); const pieceIdRef = useRef(0);
   const JACKPOT = 25, BH = 12;
 
   useEffect(() => { try { const s = localStorage.getItem("cyber_stack_v2"); if (s) setHighScore(parseInt(s)); } catch {} }, []);
 
-  const startGame = () => { setGameState('playing'); setScore(0); setBlocks([{ width: 60, x: 50, perfect: false }]); setCurrentBlock({ width: 60, x: 20, direction: 1 }); setSpeed(1.5); setFallingPieces([]); setPerfectStreak(0); };
+  const startGame = () => { setGameState('playing'); setScore(0); setBlocks([{ width: 60, x: 50, perfect: false }]); setCurrentBlock({ width: 60, x: 20, direction: 1 }); setSpeed(1.5); setFallingPieces([]); setPerfectStreak(0); setShowOnboarding(true); };
 
   const dropBlock = () => {
     if (gameState !== 'playing') return;
+    setShowOnboarding(false);
     const lb = blocks[blocks.length - 1], cl = currentBlock.x, cr = currentBlock.x + currentBlock.width, ll = lb.x - lb.width / 2, lr = lb.x + lb.width / 2;
     const ol = Math.max(cl, ll), or = Math.min(cr, lr), ov = or - ol;
     if (ov <= 0) { audio.play('crash'); setGameState('gameover'); if (score > highScore) { setHighScore(score); localStorage.setItem("cyber_stack_v2", score.toString()); } return; }
@@ -577,9 +628,17 @@ const GameStack: FC<GameProps> = ({ onExit }) => {
             <span className="text-[10px] font-black text-yellow-400" style={{ animation: 'perfectPulse 0.5s' }}>PERFECT</span>
           </>}
         </div>
+        {/* Onboarding Overlay */}
+        {showOnboarding && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className="text-center" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
+              <p className="text-lg font-black uppercase tracking-widest" style={{ color: '#a855f7', textShadow: '0 0 20px #a855f7' }}>TAP TO DROP</p>
+            </div>
+          </div>
+        )}
         <div className="absolute bottom-4 left-0 right-0" style={{ transform: `translateY(${to}px)` }}>{blocks.map((b, i) => <div key={i} className="absolute rounded" style={{ width: `${b.width}%`, height: `${BH}px`, left: `${b.x - b.width / 2}%`, bottom: `${i * BH}px`, background: b.perfect ? 'linear-gradient(90deg, #ffd700, #ffaa00)' : `linear-gradient(90deg, hsl(${270 + i * 5}, 80%, 50%), hsl(${280 + i * 5}, 80%, 40%))`, boxShadow: b.perfect ? '0 0 15px #ffd700' : `0 0 8px hsl(${275 + i * 5}, 80%, 50%)` }} />)}</div>{fallingPieces.map(p => <div key={p.id} className="absolute rounded opacity-70" style={{ width: `${p.width}%`, height: `${BH}px`, left: `${p.x}%`, bottom: `${blocks.length * BH - p.y}px`, background: '#a855f7', transform: `rotate(${p.side === 'left' ? -15 : 15}deg)`, animation: 'fallAway 0.5s forwards' }} />)}<div className="absolute rounded" style={{ width: `${currentBlock.width}%`, height: `${BH}px`, left: `${currentBlock.x}%`, bottom: `${blocks.length * BH + 4 - to}px`, background: 'linear-gradient(90deg, #e879f9, #a855f7)', boxShadow: '0 0 15px #a855f7' }} /></>}
-      {gameState === 'gameover' && <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 p-4"><div className="bg-black/80 rounded-xl p-4 border border-purple-500 text-center"><h2 className="text-2xl font-black text-purple-400">TOWER FELL</h2><div className="text-4xl font-mono font-bold my-3 tracking-tighter" style={{ color: '#a855f7' }}>{score}</div>{score >= highScore && score > 0 && <p className="text-yellow-400 text-xs mb-2 tracking-widest uppercase">⭐ New Best!</p>}<button onClick={startGame} className="w-full py-2 rounded-lg font-bold text-black" style={{ background: '#a855f7' }}>🔄 RETRY</button><button onClick={onExit} className="w-full mt-2 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
-      {gameState === 'jackpot' && <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-900/50 p-4"><div className="bg-black/80 rounded-xl p-6 border-2 border-yellow-400 text-center" style={{ animation: 'jackpotGlow 1s infinite' }}><h2 className="text-3xl font-black text-yellow-400" style={{ animation: 'rgbSplit 0.3s infinite' }}>🎰 JACKPOT!</h2><div className="text-5xl font-mono font-bold my-4 text-yellow-300 tracking-tighter">{score}</div><button onClick={startGame} className="w-full py-2 rounded-lg font-bold text-black bg-yellow-400">🔄 AGAIN</button><button onClick={onExit} className="w-full mt-2 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
+      {gameState === 'gameover' && <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 p-4"><div className="bg-black/80 rounded-xl p-4 border border-purple-500 text-center"><h2 className="text-2xl font-black text-purple-400">TOWER FELL</h2><div className="text-4xl font-mono font-bold my-3 tracking-tighter" style={{ color: '#a855f7' }}>{score}</div>{score >= highScore && score > 0 && <p className="text-yellow-400 text-xs mb-2 tracking-widest uppercase">⭐ New Best!</p>}<button onClick={() => shareOnTwitter(`🏗️ I stacked ${score} blocks in Cyber Stack! Beat me at #ScrollyGameJam`)} className="w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 mb-1.5" style={{ background: '#a855f720', border: '1px solid #a855f740', color: '#a855f7' }}><ShareIcon color="#a855f7" />SHARE SCORE</button><button onClick={startGame} className="w-full py-2 rounded-lg font-bold text-black" style={{ background: '#a855f7' }}>🔄 RETRY</button><button onClick={onExit} className="w-full mt-2 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
+      {gameState === 'jackpot' && <div className="absolute inset-0 flex flex-col items-center justify-center bg-yellow-900/50 p-4"><div className="bg-black/80 rounded-xl p-6 border-2 border-yellow-400 text-center" style={{ animation: 'jackpotGlow 1s infinite' }}><h2 className="text-3xl font-black text-yellow-400" style={{ animation: 'rgbSplit 0.3s infinite' }}>🎰 JACKPOT!</h2><div className="text-5xl font-mono font-bold my-4 text-yellow-300 tracking-tighter">{score}</div><button onClick={() => shareOnTwitter(`🏗️ I hit JACKPOT with ${score} blocks in Cyber Stack! Beat me at #ScrollyGameJam`)} className="w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 mb-1.5" style={{ background: '#ffd70020', border: '1px solid #ffd70040', color: '#ffd700' }}><ShareIcon color="#ffd700" />SHARE SCORE</button><button onClick={startGame} className="w-full py-2 rounded-lg font-bold text-black bg-yellow-400">🔄 AGAIN</button><button onClick={onExit} className="w-full mt-2 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button></div></div>}
     </div>
   );
 };
@@ -595,6 +654,7 @@ const GameGravity: FC<GameProps> = ({ onExit }) => {
   const [tunnelRotation, setTunnelRotation] = useState(0);
   const [glitchEffect, setGlitchEffect] = useState(false);
   const [renderTick, setRenderTick] = useState(0);
+  const [showOnboarding, setShowOnboarding] = useState(true);
 
   // Use refs for physics to avoid stale closure issues
   const physicsRef = useRef({ playerY: 50, velocity: 0, gravity: 1, distance: 0, gameSpeed: 1 });
@@ -617,6 +677,7 @@ const GameGravity: FC<GameProps> = ({ onExit }) => {
     obstaclesRef.current = [];
     setTunnelRotation(0);
     setGlitchEffect(false);
+    setShowOnboarding(true);
     idRef.current = 0;
     lastSpawnRef.current = 0;
 
@@ -634,6 +695,7 @@ const GameGravity: FC<GameProps> = ({ onExit }) => {
 
   const flipGravity = () => {
     if (gameStateRef.current !== 'playing') return;
+    setShowOnboarding(false);
     audio.play('flip');
     physicsRef.current.gravity *= -1;
     physicsRef.current.velocity = 0; // Reset velocity on flip for snappy control
@@ -801,6 +863,14 @@ const GameGravity: FC<GameProps> = ({ onExit }) => {
               {physicsRef.current.gravity > 0 ? '↓' : '↑'}
             </span>
           </div>
+          {/* Onboarding Overlay */}
+          {gameState === 'playing' && showOnboarding && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+              <div className="text-center" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
+                <p className="text-lg font-black uppercase tracking-widest" style={{ color: '#ff8800', textShadow: '0 0 20px #ff8800' }}>TAP TO FLIP</p>
+              </div>
+            </div>
+          )}
 
           {obstaclesRef.current.map(o => (
             <div key={o.id}>
@@ -825,6 +895,7 @@ const GameGravity: FC<GameProps> = ({ onExit }) => {
               <h2 className="text-2xl font-black text-orange-400" style={{ animation: 'rgbSplit 0.5s' }}>GLITCHED OUT</h2>
               <div className="text-4xl font-mono font-bold my-3 tracking-tighter" style={{ color: '#ff8800' }}>{finalScore}</div>
               {finalScore >= highScore && finalScore > 0 && <p className="text-yellow-400 text-xs mb-2 tracking-widest uppercase">⭐ New Best!</p>}
+              <button onClick={() => shareOnTwitter(`🔄 I survived ${finalScore}m in Gravity Glitch! Beat me at #ScrollyGameJam`)} className="w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 mb-1.5" style={{ background: '#ff880020', border: '1px solid #ff880040', color: '#ff8800' }}><ShareIcon color="#ff8800" />SHARE SCORE</button>
               <button onClick={startGame} className="w-full py-2 rounded-lg font-bold text-black" style={{ background: '#ff8800' }}>🔄 RETRY</button>
               <button onClick={(e) => { e.stopPropagation(); onExit(); }} className="w-full mt-2 py-1.5 rounded-lg text-white/40 border border-white/20 text-sm">← MENU</button>
             </div>
